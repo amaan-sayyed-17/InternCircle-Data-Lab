@@ -1,8 +1,9 @@
-"""Task 4: analyze sample e-commerce sales trends."""
+"""Project 3: Customer Churn / Sales Trend Analysis.
+Uses synthetic example data for demonstration; replace with an authorized real dataset for real business conclusions.
+"""
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Clearly labelled synthetic example data for demonstration.
 data = [
     ("2026-09-01", "Mumbai", "USB-C Cable", 120, 80, 2),
     ("2026-09-02", "Pune", "Phone Case", 199, 90, 5),
@@ -16,26 +17,65 @@ data = [
     ("2026-09-10", "Nashik", "Wired Earphones", 299, 180, 2),
 ]
 df = pd.DataFrame(data, columns=["date", "city", "product", "unit_price", "unit_cost", "quantity"])
-df["date"] = pd.to_datetime(df["date"])
+
+# Feature engineering: parse date and derive calendar/time features.
+df["date"] = pd.to_datetime(df["date"], errors="coerce")
+df = df.dropna(subset=["date"]).drop_duplicates()
+df["month"] = df["date"].dt.to_period("M").astype(str)
+df["weekday"] = df["date"].dt.day_name()
 df["revenue"] = df["unit_price"] * df["quantity"]
 df["cost"] = df["unit_cost"] * df["quantity"]
 df["profit"] = df["revenue"] - df["cost"]
+df["profit_margin_pct"] = (df["profit"] / df["revenue"] * 100).round(2)
 
 print("Dataset preview:")
-print(df.head())
-print("\nTotal revenue:", round(df["revenue"].sum(), 2))
-print("Total profit:", round(df["profit"].sum(), 2))
-print("Units sold:", int(df["quantity"].sum()))
-print("\nRevenue by product:")
-print(df.groupby("product")["revenue"].sum().sort_values(ascending=False))
-print("\nRevenue by city:")
-print(df.groupby("city")["revenue"].sum().sort_values(ascending=False))
+print(df.head().to_string(index=False))
+print("\nSummary metrics")
+print(f"Total revenue: INR {df['revenue'].sum():,.2f}")
+print(f"Total cost: INR {df['cost'].sum():,.2f}")
+print(f"Total profit: INR {df['profit'].sum():,.2f}")
+print(f"Units sold: {int(df['quantity'].sum())}")
 
-daily = df.groupby("date", as_index=False)["revenue"].sum()
-daily.plot(x="date", y="revenue", kind="line", marker="o", legend=False, title="Daily Sample Revenue")
+# Pivot tables required for business trend analysis.
+product_pivot = pd.pivot_table(
+    df, index="product", values=["quantity", "revenue", "profit"],
+    aggfunc="sum"
+).sort_values("revenue", ascending=False)
+city_pivot = pd.pivot_table(
+    df, index="city", values=["quantity", "revenue", "profit"],
+    aggfunc="sum"
+).sort_values("revenue", ascending=False)
+daily_pivot = pd.pivot_table(
+    df, index="date", values=["quantity", "revenue", "profit"], aggfunc="sum"
+).sort_index()
+
+print("\nProduct performance pivot:")
+print(product_pivot.to_string())
+print("\nCity performance pivot:")
+print(city_pivot.to_string())
+print("\nDaily trend pivot:")
+print(daily_pivot.to_string())
+
+# Visualize daily revenue trend.
+daily_pivot["revenue"].plot(kind="line", marker="o", title="Daily Sample Revenue Trend")
+plt.xlabel("Date")
 plt.ylabel("Revenue (INR)")
 plt.tight_layout()
 plt.savefig("daily_sales_trend.png", dpi=150, bbox_inches="tight")
-plt.show()
+plt.close()
 
-print("\nNote: this is synthetic demonstration data, not real customer/company data.")
+# Create a concise, data-derived recommendation summary.
+top_product = product_pivot.index[0]
+top_city = city_pivot.index[0]
+best_profit_product = product_pivot["profit"].idxmax()
+recommendations = [
+    f"Highest-revenue product in this sample: {top_product}. Check stock availability before promotions.",
+    f"Highest-revenue city in this sample: {top_city}. Review demand and delivery performance in this city.",
+    f"Highest total-profit product in this sample: {best_profit_product}. Compare its margin and sales volume before scaling.",
+    "Use a larger, real, authorized dataset before making operational or customer-level decisions."
+]
+print("\nActionable business recommendations:")
+for item in recommendations:
+    print(f"- {item}")
+
+print("\nData note: this is synthetic demonstration data, not real company or customer data.")
